@@ -79,7 +79,10 @@ function sendMessage() {
   ws.value.send(
     JSON.stringify({
       type: 'message',
-      data: { from: currentUser.value, text: message.value.trim() },
+      data: {
+        from: currentUser.value,
+        text: message.value.trim(),
+      },
     }),
   );
   message.value = '';
