@@ -1,17 +1,17 @@
-import { ClientMessage, ServerMessage } from "@chat/shared";
+import { ClientMessage, ServerMessage } from '@chat/shared';
 
-import cors from "@fastify/cors";
-import fastifyEnv from "@fastify/env";
-import websocket from "@fastify/websocket";
-import Fastify, { FastifyInstance, FastifyRequest } from "fastify";
-import { WebSocket } from "ws";
+import cors from '@fastify/cors';
+import fastifyEnv from '@fastify/env';
+import websocket from '@fastify/websocket';
+import Fastify, { FastifyInstance } from 'fastify';
+import { WebSocket } from 'ws';
 
 const schema = {
-  type: "object",
-  required: ["NODE_ENV", "PORT"],
+  type: 'object',
+  required: ['NODE_ENV', 'PORT'],
   properties: {
-    NODE_ENV: { type: "string" },
-    PORT: { type: "number", default: 4000 },
+    NODE_ENV: { type: 'string' },
+    PORT: { type: 'number', default: 4000 },
   },
 };
 
@@ -24,91 +24,83 @@ await server.register(websocket);
 const users = new Map<string, { socket: WebSocket; chatId: string }>();
 const chatRooms = new Map<string, Set<string>>();
 
-server.get("/", async () => ({ hello: "world" }));
+server.get('/', async () => ({ hello: 'world' }));
 
-server.get(
-  "/chat",
-  { websocket: true },
-  (socket: WebSocket, request: FastifyRequest) => {
-    let currentUserId: string | null = null;
+server.get('/chat', { websocket: true }, (socket: WebSocket) => {
+  let currentUserId: string | null = null;
 
-    socket.on("message", async (raw) => {
-      try {
-        const msg = JSON.parse(raw.toString()) as ClientMessage;
+  socket.on('message', async (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString()) as ClientMessage;
 
-        switch (msg.type) {
-          case "join": {
-            currentUserId = msg.data.userId;
-            users.set(currentUserId, { socket, chatId: msg.data.chatId });
+      switch (msg.type) {
+        case 'join': {
+          currentUserId = msg.data.userId;
+          users.set(currentUserId, { socket, chatId: msg.data.chatId });
 
-            if (!chatRooms.has(msg.data.chatId)) {
-              chatRooms.set(msg.data.chatId, new Set());
-            }
-            chatRooms.get(msg.data.chatId)!.add(currentUserId);
-
-            broadcastToChat(
-              msg.data.chatId,
-              {
-                type: "user_joined",
-                userId: currentUserId,
-                chatId: msg.data.chatId,
-              },
-              currentUserId,
-            );
-
-            break;
+          if (!chatRooms.has(msg.data.chatId)) {
+            chatRooms.set(msg.data.chatId, new Set());
           }
+          chatRooms.get(msg.data.chatId)!.add(currentUserId);
 
-          case "message": {
-            if (!currentUserId || !users.has(currentUserId)) {
-              socket.send(
-                JSON.stringify({
-                  type: "error",
-                  message: "Not joined to a chat",
-                } satisfies ServerMessage),
-              );
-              return;
-            }
+          broadcastToChat(
+            msg.data.chatId,
+            {
+              type: 'user_joined',
+              userId: currentUserId,
+              chatId: msg.data.chatId,
+            },
+            currentUserId,
+          );
 
-            const { chatId } = users.get(currentUserId)!;
-            broadcastToChat(
-              chatId,
-              {
-                type: "message",
-                data: { ...msg.data, chatId, timestamp: Date.now() },
-              },
-              currentUserId,
-            );
-
-            break;
-          }
+          break;
         }
-      } catch (err) {
-        server.log.error({ err }, "Invalid message");
+
+        case 'message': {
+          if (!currentUserId || !users.has(currentUserId)) {
+            socket.send(
+              JSON.stringify({
+                type: 'error',
+                message: 'Not joined to a chat',
+              } satisfies ServerMessage),
+            );
+            return;
+          }
+
+          const { chatId } = users.get(currentUserId)!;
+          broadcastToChat(
+            chatId,
+            {
+              type: 'message',
+              data: { ...msg.data, chatId, timestamp: Date.now() },
+            },
+            currentUserId,
+          );
+
+          break;
+        }
       }
-    });
+    } catch (err) {
+      server.log.error({ err }, 'Invalid message');
+    }
+  });
 
-    socket.on("close", () => {
-      if (currentUserId && users.has(currentUserId)) {
-        const { chatId } = users.get(currentUserId)!;
-        chatRooms.get(chatId)?.delete(currentUserId);
-        users.delete(currentUserId);
+  socket.on('close', () => {
+    if (currentUserId && users.has(currentUserId)) {
+      const { chatId } = users.get(currentUserId)!;
+      chatRooms.get(chatId)?.delete(currentUserId);
+      users.delete(currentUserId);
 
-        broadcastToChat(chatId, {
-          type: "user_left",
-          userId: currentUserId,
-          chatId,
-        });
-      }
-    });
-  },
-);
+      broadcastToChat(chatId, {
+        type: 'user_left',
+        userId: currentUserId,
+        chatId,
+      });
+    }
+  });
+});
 
-function broadcastToChat(
-  chatId: string,
-  msg: ServerMessage,
-  excludeUserId?: string,
-) {
+function broadcastToChat(chatId: string, msg: ServerMessage, excludeUserId?: string) {
   const members = chatRooms.get(chatId);
   if (!members) return;
 
