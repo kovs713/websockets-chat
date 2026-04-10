@@ -1,31 +1,34 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch } from 'vue';
 
 interface Message {
   type: string;
   html: string;
 }
 
+const props = defineProps<{
+  defaultUserId?: string;
+  defaultChatId?: string;
+}>();
+
 const ws = ref<WebSocket | null>(null);
-const currentUser = ref("");
-const userId = ref("");
-const chatId = ref("");
-const message = ref("");
+const currentUser = ref(props.defaultUserId ?? '');
+const chatRoom = ref(props.defaultChatId ?? '');
+const message = ref('');
 const joined = ref(false);
 const messages = ref<Message[]>([]);
 const messagesDiv = ref<HTMLDivElement | null>(null);
 
 function joinChat() {
-  if (!userId.value.trim() || !chatId.value.trim()) return;
+  if (!currentUser.value.trim() || !chatRoom.value.trim()) return;
 
-  currentUser.value = userId.value.trim();
   ws.value = new WebSocket(`ws://${window.location.hostname}:4000/chat`);
 
   ws.value.onopen = () => {
     ws.value!.send(
       JSON.stringify({
-        type: "join",
-        data: { userId: currentUser.value, chatId: chatId.value.trim() },
+        type: 'join',
+        data: { userId: currentUser.value, chatId: chatRoom.value.trim() },
       }),
     );
     joined.value = true;
@@ -34,27 +37,27 @@ function joinChat() {
   ws.value.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     switch (msg.type) {
-      case "message":
+      case 'message':
         messages.value.push({
-          type: "message",
+          type: 'message',
           html: `<strong>${msg.data.from}:</strong> ${msg.data.text}`,
         });
         break;
-      case "user_joined":
+      case 'user_joined':
         messages.value.push({
-          type: "system",
+          type: 'system',
           html: `<em>${msg.userId} joined</em>`,
         });
         break;
-      case "user_left":
+      case 'user_left':
         messages.value.push({
-          type: "system",
+          type: 'system',
           html: `<em>${msg.userId} left</em>`,
         });
         break;
-      case "error":
+      case 'error':
         messages.value.push({
-          type: "error",
+          type: 'error',
           html: `<span style="color:red">${msg.message}</span>`,
         });
         break;
@@ -63,8 +66,8 @@ function joinChat() {
 
   ws.value.onclose = () => {
     messages.value.push({
-      type: "system",
-      html: "<em>Disconnected</em>",
+      type: 'system',
+      html: '<em>Disconnected</em>',
     });
     joined.value = false;
   };
@@ -75,15 +78,15 @@ function sendMessage() {
 
   ws.value.send(
     JSON.stringify({
-      type: "message",
+      type: 'message',
       data: { from: currentUser.value, text: message.value.trim() },
     }),
   );
-  message.value = "";
+  message.value = '';
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === "Enter") sendMessage();
+  if (e.key === 'Enter') sendMessage();
 }
 
 watch(messages, () => {
@@ -96,25 +99,17 @@ watch(messages, () => {
 <template>
   <div class="chat-app">
     <div v-if="!joined" class="login">
-      <input v-model="userId" placeholder="Username" />
-      <input v-model="chatId" placeholder="Chat Room" />
+      <input v-model="currentUser" placeholder="Username" />
+      <input v-model="chatRoom" placeholder="Chat Room" />
       <button @click="joinChat">Join</button>
     </div>
     <div v-else class="chat">
+      <div class="chat-header">{{ currentUser }}</div>
       <div ref="messagesDiv" class="messages">
-        <p
-          v-for="(msg, i) in messages"
-          :key="i"
-          :class="msg.type"
-          v-html="msg.html"
-        />
+        <p v-for="(msg, i) in messages" :key="i" :class="msg.type" v-html="msg.html" />
       </div>
       <div class="input-area">
-        <input
-          v-model="message"
-          placeholder="Type a message..."
-          @keydown="handleKeydown"
-        />
+        <input v-model="message" placeholder="Type a message..." @keydown="handleKeydown" />
         <button @click="sendMessage">Send</button>
       </div>
     </div>
@@ -123,15 +118,28 @@ watch(messages, () => {
 
 <style scoped>
 .chat-app {
-  max-width: 600px;
-  margin: 2rem auto;
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.chat-header {
+  padding: 0.5rem 1rem;
+  background: #007bff;
+  color: white;
+  font-weight: bold;
+  text-align: center;
 }
 .login,
 .input-area {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  padding: 1rem;
+}
+.login {
+  flex-direction: column;
 }
 input {
   flex: 1;
@@ -151,11 +159,9 @@ button:hover {
   background: #0056b3;
 }
 .messages {
-  height: 400px;
+  flex: 1;
   overflow-y: auto;
-  border: 1px solid #eee;
   padding: 1rem;
-  margin-bottom: 1rem;
   background: #f9f9f9;
 }
 .messages p {
