@@ -40,7 +40,7 @@ function joinChat() {
       case 'message':
         messages.value.push({
           type: 'message',
-          html: `<strong>${msg.data.from}:</strong> ${msg.data.text}`,
+          html: `[${new Date(msg.data.timestamp).toLocaleTimeString()}] <strong>${msg.data.from}:</strong> ${msg.data.text}`,
         });
         break;
       case 'user_joined':
