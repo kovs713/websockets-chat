@@ -36,6 +36,16 @@ server.get('/chat', { websocket: true }, (socket: WebSocket) => {
       switch (msg.type) {
         case 'join': {
           currentUserId = msg.data.userId;
+
+          if (typeof msg.data.userId !== 'string' || msg.data.userId.trim().length === 0) {
+            socket.send(JSON.stringify({ type: 'error', message: 'Invalid user ID' } satisfies ServerMessage));
+            return;
+          }
+          if (typeof msg.data.chatId !== 'string' || msg.data.chatId.trim().length === 0) {
+            socket.send(JSON.stringify({ type: 'error', message: 'Invalid chat room ID' } satisfies ServerMessage));
+            return;
+          }
+
           users.set(currentUserId, { socket, chatId: msg.data.chatId });
 
           if (!chatRooms.has(msg.data.chatId)) {
@@ -64,6 +74,11 @@ server.get('/chat', { websocket: true }, (socket: WebSocket) => {
                 message: 'Not joined to a chat',
               } satisfies ServerMessage),
             );
+            return;
+          }
+
+          if (typeof msg.data.text !== 'string' || msg.data.text.trim().length === 0) {
+            socket.send(JSON.stringify({ type: 'error', message: 'Message text cannot be empty' } satisfies ServerMessage));
             return;
           }
 
