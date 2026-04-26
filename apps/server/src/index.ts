@@ -41,6 +41,10 @@ server.get('/chat', { websocket: true }, (socket: WebSocket) => {
             socket.send(JSON.stringify({ type: 'error', message: 'Invalid user ID' } satisfies ServerMessage));
             return;
           }
+          if (!/^[a-zA-Z0-9_]{3,20}$/.test(msg.data.userId)) {
+            socket.send(JSON.stringify({ type: 'error', message: 'Username must be 3-20 chars (alphanumeric + underscores)' } satisfies ServerMessage));
+            return;
+          }
           if (typeof msg.data.chatId !== 'string' || msg.data.chatId.trim().length === 0) {
             socket.send(JSON.stringify({ type: 'error', message: 'Invalid chat room ID' } satisfies ServerMessage));
             return;
