@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 
-interface Message {
-  type: string;
-  html: string;
+interface DisplayMessage {
+  type: 'message' | 'system' | 'error';
+  content: string;
+  timestamp?: number;
 }
 
 const props = defineProps<{
@@ -16,7 +17,7 @@ const currentUser = ref(props.defaultUserId ?? '');
 const chatRoom = ref(props.defaultChatId ?? '');
 const message = ref('');
 const joined = ref(false);
-const messages = ref<Message[]>([]);
+const messages = ref<DisplayMessage[]>([]);
 const messagesDiv = ref<HTMLDivElement | null>(null);
 
 function joinChat() {
@@ -40,25 +41,25 @@ function joinChat() {
       case 'message':
         messages.value.push({
           type: 'message',
-          html: `[${new Date(msg.data.timestamp).toLocaleTimeString()}] <strong>${msg.data.from}:</strong> ${msg.data.text}`,
+          content: `[${new Date(msg.data.timestamp).toLocaleTimeString()}] ${msg.data.from}: ${msg.data.text}`,
         });
         break;
       case 'user_joined':
         messages.value.push({
           type: 'system',
-          html: `<em>${msg.userId} joined</em>`,
+          content: `${msg.userId} joined`,
         });
         break;
       case 'user_left':
         messages.value.push({
           type: 'system',
-          html: `<em>${msg.userId} left</em>`,
+          content: `${msg.userId} left`,
         });
         break;
       case 'error':
         messages.value.push({
           type: 'error',
-          html: `<span style="color:red">${msg.message}</span>`,
+          content: msg.message,
         });
         break;
     }
@@ -67,7 +68,7 @@ function joinChat() {
   ws.value.onclose = () => {
     messages.value.push({
       type: 'system',
-      html: '<em>Disconnected</em>',
+      content: 'Disconnected',
     });
     joined.value = false;
   };
@@ -109,7 +110,7 @@ watch(messages, () => {
     <div v-else class="chat">
       <div class="chat-header">{{ currentUser }}</div>
       <div ref="messagesDiv" class="messages">
-        <p v-for="(msg, i) in messages" :key="i" :class="msg.type" v-html="msg.html" />
+        <p v-for="(msg, i) in messages" :key="i" :class="msg.type">{{ msg.content }}</p>
       </div>
       <div class="input-area">
         <input v-model="message" placeholder="Type a message..." @keydown="handleKeydown" />
