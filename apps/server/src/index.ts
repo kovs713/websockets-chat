@@ -1,4 +1,5 @@
 import { ClientMessage, ServerMessage } from '@chat/shared';
+import { handleMessage, handleClose } from './handlers';
 
 import cors from '@fastify/cors';
 import fastifyEnv from '@fastify/env';
@@ -32,77 +33,16 @@ server.get('/chat', { websocket: true }, (socket: WebSocket) => {
   socket.on('message', async (raw) => {
     try {
       const msg = JSON.parse(raw.toString()) as ClientMessage;
-
-      switch (msg.type) {
-        case 'join': {
-          currentUserId = msg.data.userId;
-
-          if (typeof msg.data.userId !== 'string' || msg.data.userId.trim().length === 0) {
-            socket.send(JSON.stringify({ type: 'error', message: 'Invalid user ID' } satisfies ServerMessage));
-            return;
-          }
-          if (!/^[a-zA-Z0-9_]{3,20}$/.test(msg.data.userId)) {
-            socket.send(JSON.stringify({ type: 'error', message: 'Username must be 3-20 chars (alphanumeric + underscores)' } satisfies ServerMessage));
-            return;
-          }
-          if (typeof msg.data.chatId !== 'string' || msg.data.chatId.trim().length === 0) {
-            socket.send(JSON.stringify({ type: 'error', message: 'Invalid chat room ID' } satisfies ServerMessage));
-            return;
-          }
-
-          users.set(currentUserId, { socket, chatId: msg.data.chatId });
-
-          if (!chatRooms.has(msg.data.chatId)) {
-            chatRooms.set(msg.data.chatId, new Set());
-          }
-          chatRooms.get(msg.data.chatId)!.add(currentUserId);
-
-          broadcastToChat(
-            msg.data.chatId,
-            {
-              type: 'user_joined',
-              userId: currentUserId,
-              chatId: msg.data.chatId,
-            },
-            currentUserId,
-          );
-
-          break;
-        }
-
-        case 'message': {
-          if (!currentUserId || !users.has(currentUserId)) {
-            socket.send(
-              JSON.stringify({
-                type: 'error',
-                message: 'Not joined to a chat',
-              } satisfies ServerMessage),
-            );
-            return;
-          }
-
-          if (typeof msg.data.text !== 'string' || msg.data.text.trim().length === 0) {
-            socket.send(JSON.stringify({ type: 'error', message: 'Message text cannot be empty' } satisfies ServerMessage));
-            return;
-          }
-
-          const { chatId } = users.get(currentUserId)!;
-          broadcastToChat(
-            chatId,
-            {
-              type: 'message',
-              data: { ...msg.data, chatId, timestamp: Date.now() },
-            },
-            currentUserId,
-          );
-
-          break;
-        }
-      }
+      currentUserId = handleMessage(msg, socket, currentUserId, users, chatRooms, server, broadcastToChat);
     } catch (err) {
       server.log.error({ err }, 'Invalid message');
     }
   });
+
+  socket.on('close', () => {
+    handleClose(currentUserId, users, chatRooms, broadcastToChat);
+  });
+});
 
   socket.on('close', () => {
     if (currentUserId && users.has(currentUserId)) {
